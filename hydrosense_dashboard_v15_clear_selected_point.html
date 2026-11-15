@@ -1,0 +1,732 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#0b1220">
+<title>HydroSense | Monitoring Dashboard</title>
+<style>
+:root{--bg:#08111f;--panel:#101c2d;--panel2:#142238;--line:#24364d;--text:#e8f0fa;--muted:#91a4ba;--green:#35d49a;--red:#ff647c;--yellow:#f5c65b;--blue:#56a9ff;--cyan:#46d6e8;--shadow:0 12px 32px rgba(0,0,0,.18)}
+*{box-sizing:border-box}body{margin:0;background:radial-gradient(ellipse at top,#10233b 0,#08111f 52%);color:var(--text);font-family:Inter,ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;min-height:100vh}
+.wrap{max-width:1440px;margin:auto;padding:26px 22px 40px}.top{display:flex;justify-content:space-between;align-items:center;gap:16px;margin-bottom:22px}.brand{display:flex;align-items:center;gap:13px}.logo{width:46px;height:46px;border-radius:14px;background:linear-gradient(145deg,#1e9fba,#2166b7);display:grid;place-items:center;font-size:24px;box-shadow:0 8px 24px #0b789955}.brand h1{font-size:23px;letter-spacing:.2px;margin:0}.sub{color:var(--muted);font-size:12px;margin-top:4px}.topright{display:flex;align-items:center;gap:10px;flex-wrap:wrap}.pill{border:1px solid var(--line);background:#111f31;padding:8px 12px;border-radius:999px;color:var(--muted);font-size:12px}.status-dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--yellow);margin-right:7px}.status-dot.online{background:var(--green);box-shadow:0 0 10px #35d49a88}.status-dot.offline{background:var(--red)}.status-dot.sleep{background:var(--yellow);box-shadow:0 0 10px #f5c65b88}
+.overview{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;margin-bottom:22px}.overview-card,.section,.sensor-card{background:linear-gradient(145deg,rgba(20,34,56,.96),rgba(13,25,42,.96));border:1px solid var(--line);border-radius:17px;box-shadow:var(--shadow)}.overview-card{padding:16px 18px;min-height:98px}.ov-label{color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:1px}.ov-value{font-size:20px;font-weight:700;margin-top:9px}.ov-small{font-size:11px;color:var(--muted);margin-top:4px}
+.ov-value.ov-date{font-size:clamp(15px,1.55vw,20px);white-space:nowrap}
+#deviceStatusCard.status-online{color:var(--green)}
+#deviceStatusCard.status-sleep{color:var(--yellow)}
+#deviceStatusCard.status-offline{color:var(--red)}
+#gpsPositionCard.gps-fix{color:var(--green)}
+#gpsPositionCard.gps-no-fix{color:var(--yellow)}
+
+.section{padding:18px;margin-bottom:20px}.section-head{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:15px}.section-title{font-size:15px;font-weight:700;display:flex;align-items:center;gap:9px}.section-sub{color:var(--muted);font-size:11px}.grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:13px}.sensor-card{padding:15px 15px 12px;min-width:0;overflow:hidden;box-shadow:none;background:linear-gradient(145deg,#14243a,#101c2e)}
+.sensor-card{transition:transform .22s ease,border-color .22s ease,box-shadow .22s ease}
+.sensor-card:hover{transform:translateY(-4px);border-color:rgba(86,169,255,.48);box-shadow:0 12px 28px rgba(0,0,0,.22),0 0 20px rgba(53,217,255,.07)}
+.sensor-value{ text-shadow:0 0 18px rgba(86,169,255,.10) }
+.chart-wrap canvas{overflow:visible}
+.sensor-top{display:flex;align-items:center;justify-content:space-between;gap:8px}.sensor-name{font-size:12px;color:#b5c5d8;font-weight:600}.sensor-icon{width:28px;height:28px;display:grid;place-items:center;border-radius:9px;background:#203750;color:var(--cyan);font-size:15px}.sensor-value{font-size:27px;font-weight:750;letter-spacing:-.8px;margin:11px 0 2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.unit{font-size:12px;color:var(--muted);font-weight:500;margin-left:4px}.sensor-foot{font-size:10px;color:var(--muted);display:flex;justify-content:space-between;gap:8px;margin-top:4px}.chart-wrap{height:62px;margin-top:12px;position:relative;border-top:1px solid rgba(145,164,186,.12);padding-top:7px}.chart-wrap canvas{width:100%;height:54px;display:block;cursor:crosshair;touch-action:pan-y}.chart-tooltip{position:absolute;z-index:5;display:none;max-width:calc(100% - 12px);padding:6px 9px;border:1px solid rgba(86,169,255,.38);border-radius:8px;background:rgba(7,17,31,.96);color:var(--text);font-size:10px;line-height:1.45;white-space:nowrap;pointer-events:none;box-shadow:0 5px 18px rgba(0,0,0,.3)}.chart-tooltip strong{color:var(--cyan);font-size:11px}.chart-empty{position:absolute;inset:7px 0 0;display:grid;place-items:center;color:#71869e;font-size:10px;pointer-events:none}.sensor-card.no-data .chart-empty{display:grid}
+.tag{font-size:9px;padding:4px 7px;border-radius:99px;background:#20364a;color:#9fb5ca;white-space:nowrap}.tag.good{color:var(--green);background:#123b36}.tag.warn{color:var(--yellow);background:#42351a}.tag.bad{color:var(--red);background:#401e2b}
+.tag.rising{color:#ffbf47;background:rgba(92,61,15,.48)}
+.tag.falling{color:#66b7ff;background:rgba(25,66,112,.48)}
+.tag.stable{color:#48e3a2;background:rgba(18,75,48,.62)}
+.tag.no-trend{color:#9fb5ca;background:#20364a}
+.trend-badges{display:flex;align-items:center;justify-content:flex-end;gap:5px;flex-wrap:wrap}
+.trend-badges .tag{font-size:8px;padding:4px 6px;letter-spacing:.1px}
+
+
+.two-col{display:grid;grid-template-columns:1.2fr .8fr;gap:14px}.info-row{display:flex;justify-content:space-between;gap:15px;padding:10px 0;border-bottom:1px solid rgba(145,164,186,.12);font-size:12px}.info-row:last-child{border-bottom:0}.info-row span:first-child{color:var(--muted)}.info-row strong{font-weight:600;text-align:right;overflow-wrap:anywhere}.footer{display:flex;justify-content:space-between;gap:12px;color:#71869e;font-size:10px;padding:2px 4px}.error{color:var(--red)}button{border:1px solid var(--line);background:#14243a;color:var(--text);border-radius:9px;padding:8px 11px;font-size:11px;cursor:pointer}button:hover{background:#1b3451}
+@media(max-width:1050px){.grid{grid-template-columns:repeat(3,minmax(0,1fr))}.overview{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:680px){.wrap{padding:17px 12px 28px}.top{align-items:flex-start}.brand h1{font-size:19px}.logo{width:40px;height:40px}.topright{justify-content:flex-end}.pill{padding:7px 9px}.grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}.sensor-card{padding:12px 11px 10px}.sensor-value{font-size:23px}.overview{gap:9px}.overview-card{padding:13px;min-height:88px}.ov-value{font-size:17px}.section{padding:13px}.two-col{grid-template-columns:1fr}.chart-wrap{height:56px}.chart-wrap canvas{height:48px}}
+@media(max-width:390px){.grid{grid-template-columns:1fr 1fr}.sensor-value{font-size:21px}.brand h1{font-size:17px}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div class="brand"><div class="logo">💧</div><div><h1>HydroSense</h1><div class="sub">Water · Soil · Environmental Monitoring</div></div></div>
+    <div class="topright"><div class="pill"><span id="statusDot" class="status-dot"></span><span id="deviceStatus">CONNECTING</span></div><div class="pill" id="lastUpdate">Waiting for data…</div><button id="refreshBtn">↻ Refresh</button></div>
+  </header>
+
+  <div class="overview">
+    <div class="overview-card"><div class="ov-label">Device status</div><div class="ov-value" id="deviceStatusCard">CONNECTING</div><div class="ov-small" id="deviceId">HYDROSENSE-001</div></div>
+    <div class="overview-card"><div class="ov-label">Last data received</div><div class="ov-value ov-date" id="lastReceivedCard">—</div><div class="ov-small" id="deviceTimestampCard">Device data timestamp: —</div></div>
+    <div class="overview-card"><div class="ov-label">GPS position</div><div class="ov-value" id="gpsPositionCard">—</div><div class="ov-small" id="gpsCoordinateCard">No valid coordinate</div></div>
+    <div class="overview-card"><div class="ov-label">GPS satellites</div><div class="ov-value" id="gpsSatellitesCard">—</div><div class="ov-small" id="gpsFixAgeCard">Fix age: —</div></div>
+  </div>
+
+  <section class="section">
+    <div class="section-head"><div><div class="section-title">🌊 Water Quality</div><div class="section-sub">Live readings with individual 1-hour trends</div></div><span class="tag">WATER</span></div>
+    <div class="grid" id="waterGrid"></div>
+  </section>
+
+  <section class="section">
+    <div class="section-head"><div><div class="section-title">🌱 Soil Parameters</div><div class="section-sub">Live readings with individual 1-hour trends</div></div><span class="tag">SOIL</span></div>
+    <div class="grid" id="soilGrid"></div>
+  </section>
+
+  <section class="section">
+    <div class="section-head"><div><div class="section-title">🌤️ Environment</div><div class="section-sub">Ambient conditions · 1-hour trends</div></div><span class="tag">ENVIRONMENT</span></div>
+    <div class="grid" id="envGrid"></div>
+  </section>
+
+  <div class="two-col">
+    <section class="section">
+      <div class="section-head"><div class="section-title">📍 GPS Information</div></div>
+      <div class="info-row"><span>GPS Fix</span><strong id="gpsFix">—</strong></div>
+      <div class="info-row"><span>Coordinates</span><strong id="gpsCoords">—</strong></div>
+      <div class="info-row"><span>Altitude</span><strong id="gpsAltitude">—</strong></div>
+      <div class="info-row"><span>Satellites</span><strong id="gpsSatellites">—</strong></div>
+    </section>
+    <section class="section">
+      <div class="section-head"><div class="section-title">⚙️ System Information</div></div>
+      <div class="info-row"><span>Project</span><strong id="projectName">—</strong></div>
+      <div class="info-row"><span>Firmware</span><strong id="firmware">—</strong></div>
+      <div class="info-row"><span>Status Mode</span><strong id="statusMode">—</strong></div>
+      <div class="info-row"><span>History Window</span><strong>Last 1 hour</strong></div>
+    </section>
+  </div>
+  <div class="footer"><span>HydroSense Monitoring Dashboard</span><span id="connectionText">API: Connecting…</span></div>
+</div>
+
+<script>
+const API = {
+  latest: 'https://api.veltrixrobotic.com/api/hydeosense/latest',
+  history: 'https://api.veltrixrobotic.com/api/hydeosense/history?hours=1',
+  status: 'https://api.veltrixrobotic.com/api/hydeosense/status'
+};
+const REFRESH_LATEST_MS = 10000;
+const REFRESH_HISTORY_MS = 30000;
+
+const PARAMS = {
+  water: [
+    ['temperature_c','Water Temperature','°C','🌡️',2],
+    ['ph','Water pH','pH','🧪',2],
+    ['orp','ORP','mV','⚡',0],
+    ['tds_raw','TDS','ppm','💧',0],
+    ['ec_raw','Electrical Conductivity','µS/cm','〰️',0],
+    ['salinity_percent','Salinity','%','🧂',2],
+    ['salinity_ppt','Salinity','ppt','🧂',2],
+    ['specific_gravity','Specific Gravity','SG','⚖️',3]
+  ],
+  soil: [
+    ['moisture','Soil Moisture','%','💦',1],
+    ['temperature_c','Soil Temperature','°C','🌡️',2],
+    ['ec_ms_cm','Soil EC','mS/cm','〰️',3],
+    ['ph','Soil pH','pH','🧪',2],
+    ['nitrogen_mg_kg','Nitrogen','mg/kg','N',0],
+    ['phosphorus_mg_kg','Phosphorus','mg/kg','P',0],
+    ['potassium_mg_kg','Potassium','mg/kg','K',0]
+  ],
+  environment: [
+    ['temperature_c','Air Temperature','°C','🌡️',2],
+    ['humidity_percent','Humidity','%','💧',1]
+  ]
+};
+
+let latestData = null;
+let historyRows = [];
+let historyLoaded = false;
+let chartInstances = [];
+const lastValidValues = Object.create(null);
+const LAST_VALUES_STORAGE_KEY = 'hydrosense_last_sensor_values_v1';
+const GRAPH_COLORS = [
+  '#35d9ff', '#b78cff', '#ffad5c', '#48e3a2',
+  '#ff6fae', '#ffd45c', '#6da8ff', '#c3ed67',
+  '#ff8a70', '#57e0cf', '#d18cff', '#a6e36e',
+  '#ffbf69', '#7fbcff', '#f28acb', '#b8e986',
+  '#e89bff'
+];
+try {
+  const savedValues = JSON.parse(localStorage.getItem(LAST_VALUES_STORAGE_KEY) || '{}');
+  if(savedValues && typeof savedValues === 'object'){
+    Object.entries(savedValues).forEach(([key,value])=>{
+      if(value!==null && value!=='' && Number.isFinite(Number(value))){
+        lastValidValues[key]=Number(value);
+      }
+    });
+  }
+} catch(storageError) {
+  console.warn('HydroSense: unable to restore cached sensor values',storageError);
+}
+function saveLastValidValues(){
+  try { localStorage.setItem(LAST_VALUES_STORAGE_KEY,JSON.stringify(lastValidValues)); }
+  catch(storageError) { console.warn('HydroSense: unable to save cached sensor values',storageError); }
+}
+let lastDataReceivedAt = null;
+let deviceDataTimestamp = null;
+let latestGpsData = null;
+const GPS_CACHE_KEY = 'hydrosense_last_valid_gps_v1';
+let lastValidGps = null;
+try {
+  const savedGps = JSON.parse(localStorage.getItem(GPS_CACHE_KEY) || 'null');
+  if(savedGps && typeof savedGps==='object' &&
+     Number.isFinite(Number(savedGps.latitude)) &&
+     Number.isFinite(Number(savedGps.longitude))){
+    lastValidGps=savedGps;
+  }
+} catch(storageError) {
+  console.warn('HydroSense: unable to restore cached GPS fix',storageError);
+}
+function saveLastValidGps(){
+  if(!lastValidGps) return;
+  try { localStorage.setItem(GPS_CACHE_KEY,JSON.stringify(lastValidGps)); }
+  catch(storageError) { console.warn('HydroSense: unable to save GPS fix',storageError); }
+}
+const SLEEP_AFTER_MS = 40 * 1000;
+const OFFLINE_AFTER_MS = 5 * 60 * 1000;
+
+function el(id){ return document.getElementById(id); }
+function setText(id,value){ const node=el(id); if(node) node.textContent = value ?? '—'; }
+function parseApiDate(value){
+  if(value===undefined || value===null || value==='') return null;
+  if(typeof value==='number' || (typeof value==='string' && /^\\d+(\\.\\d+)?$/.test(value.trim()))){
+    const n=Number(value);
+    const d=new Date(n < 1e12 ? n*1000 : n);
+    return Number.isNaN(d.getTime()) ? null : d;
+  }
+  const d=new Date(value);
+  return Number.isNaN(d.getTime()) ? null : d;
+}
+function firstDate(objects,keys){
+  for(const obj of objects){
+    if(!obj || typeof obj!=='object') continue;
+    for(const key of keys){
+      const parsed=parseApiDate(obj[key]);
+      if(parsed) return parsed;
+    }
+  }
+  return null;
+}
+function formatDateTime(date){
+  return date instanceof Date && !Number.isNaN(date.getTime())
+    ? date.toLocaleString([], {day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false})
+    : '—';
+}
+function updateDeviceHeartbeat(){
+  const age=lastDataReceivedAt ? Math.max(0,Date.now()-lastDataReceivedAt.getTime()) : Infinity;
+  let status='OFFLINE', cls='status-offline';
+  if(age<=SLEEP_AFTER_MS){ status='ONLINE'; cls='status-online'; }
+  else if(age<=OFFLINE_AFTER_MS){ status='SLEEP'; cls='status-sleep'; }
+
+  const statusCard=el('deviceStatusCard');
+  if(statusCard){
+    statusCard.textContent=status;
+    statusCard.className='ov-value '+cls;
+  }
+  const dot=el('statusDot');
+  if(dot) dot.className='status-dot '+(status==='ONLINE'?'online':status==='SLEEP'?'sleep':'offline');
+  setText('deviceStatus',status);
+
+  if(lastDataReceivedAt){
+    setText('lastReceivedCard',formatDateTime(lastDataReceivedAt));
+    setText('lastUpdate','Updated '+lastDataReceivedAt.toLocaleTimeString());
+  }else{
+    setText('lastReceivedCard','Waiting for data');
+    setText('lastUpdate','Waiting for data…');
+  }
+  setText('deviceTimestampCard','Device data timestamp: '+formatDateTime(deviceDataTimestamp));
+}
+function fmt(value, decimals){
+  if(value === null || value === undefined || value === '' || !Number.isFinite(Number(value))) return '—';
+  return Number(value).toFixed(decimals);
+}
+function onlineLabel(value){ return value === true ? 'ONLINE' : value === false ? 'OFFLINE' : '—'; }
+function normalizeOnline(value){
+  if(value===true || value===1) return true;
+  if(value===false || value===0) return false;
+  if(typeof value==='string'){
+    const v=value.trim().toLowerCase();
+    if(['true','1','online','connected','ok','active'].includes(v)) return true;
+    if(['false','0','offline','disconnected','error','inactive'].includes(v)) return false;
+  }
+  return null;
+}
+function setOnlineCard(id,value){
+  const node=el(id);
+  if(!node) return;
+  const online=normalizeOnline(value);
+  node.textContent=online===true?'ONLINE':online===false?'OFFLINE':'UNKNOWN';
+  node.style.color=online===true?'var(--green)':online===false?'var(--red)':'var(--yellow)';
+  node.dataset.online=online===null?'unknown':String(online);
+}
+function sensorOnlineValue(payload,data,group){
+  const candidates=[
+    data?.[group]?.online,
+    payload?.[group]?.online,
+    data?.sensors?.[group]?.online,
+    payload?.sensors?.[group]?.online,
+    data?.sensor_status?.[group],
+    payload?.sensor_status?.[group],
+    data?.[group+'_online'],
+    payload?.[group+'_online']
+  ];
+  for(const candidate of candidates){
+    const normalized=normalizeOnline(candidate);
+    if(normalized!==null) return normalized;
+  }
+  return null;
+}
+function getPath(obj,path){
+  return path.split('.').reduce((v,k)=>v == null ? undefined : v[k],obj);
+}
+function parseDate(row){
+  // The HydroSense history API uses `time` for the database ISO timestamp.
+  // Its `timestamp` field may instead contain a device clock string such as
+  // "22:31:45+32", which JavaScript cannot reliably parse as a date.
+  // Try each candidate until a valid date is found.
+  const candidates = [
+    row?.time,
+    row?.received_at,
+    row?.server_received_at,
+    row?.created_at,
+    row?.datetime,
+    row?.date,
+    row?.timestamp,
+    row?.device_timestamp,
+    row?.ts
+  ];
+
+  for(const raw of candidates){
+    if(raw === undefined || raw === null || raw === '') continue;
+    if(typeof raw === 'string' && raw.trim().toLowerCase()==='unavailable') continue;
+
+    let parsed;
+    if(typeof raw === 'number' || (typeof raw === 'string' && /^\\d+(\\.\\d+)?$/.test(raw.trim()))){
+      const numeric=Number(raw);
+      parsed=new Date(numeric < 1e12 ? numeric*1000 : numeric);
+    }else{
+      parsed=new Date(raw);
+    }
+    if(!Number.isNaN(parsed.getTime())) return parsed;
+  }
+  return null;
+}
+function unwrapHistory(payload){
+  if(Array.isArray(payload)) return payload;
+  if(!payload || typeof payload!=='object') return [];
+  const arrayKeys=['data','history','readings','records','results','items','rows','points','samples'];
+  for(const key of arrayKeys){
+    if(Array.isArray(payload[key])) return payload[key];
+    if(payload[key] && typeof payload[key]==='object'){
+      for(const nested of arrayKeys){
+        if(Array.isArray(payload[key][nested])) return payload[key][nested];
+      }
+    }
+  }
+  return [];
+}
+function rowRoot(row){
+  // Supports records where sensor groups are at the root or nested under common API wrappers.
+  return row?.data?.data ?? row?.data ?? row?.reading?.data ?? row?.reading ?? row?.payload?.data ?? row?.payload ?? row;
+}
+function valueFromRow(row,group,key){
+  const root=rowRoot(row);
+  const direct=getPath(root,group+'.'+key);
+  if(direct!==undefined && direct!==null) return Number(direct);
+  const flat=root?.[group+'_'+key] ?? root?.[key];
+  return flat===undefined || flat===null ? null : Number(flat);
+}
+function buildCards(){
+  const gridIds = { water:'waterGrid', soil:'soilGrid', environment:'envGrid' };
+  for(const group of Object.keys(PARAMS)){
+    const target=el(gridIds[group]);
+    if(!target){
+      console.error('HydroSense dashboard: missing sensor grid element for',group);
+      continue;
+    }
+    target.innerHTML='';
+    PARAMS[group].forEach(([key,label,unit,icon,decimals])=>{
+      const id=group+'_'+key;
+      const card=document.createElement('article');
+      card.className='sensor-card no-data'; card.id='card_'+id;
+      card.innerHTML=`
+        <div class="sensor-top"><div class="sensor-name">${label}</div><div class="sensor-icon">${icon}</div></div>
+        <div class="sensor-value" id="value_${id}">—<span class="unit">${unit}</span></div>
+        <div class="sensor-foot"><span id="trend_${id}">1-hour history</span><span class="trend-badges"><span class="tag no-trend" id="tag1h_${id}" title="Overall trend across the last hour">1H · COLLECTING</span><span class="tag no-trend" id="tag10m_${id}" title="Recent trend across the last 10 minutes">10M · COLLECTING</span></span></div>
+        <div class="chart-wrap"><canvas id="chart_${id}" aria-label="${label} 1-hour history graph. Click a point to view its value and time."></canvas><div class="chart-tooltip" id="tooltip_${id}"></div><div class="chart-empty" id="empty_${id}">Waiting for history data</div></div>`;
+      target.appendChild(card);
+    });
+  }
+}
+function drawMiniChart(canvas,points,color='#35d9ff',unit='',decimals=2){
+  const ctx=canvas.getContext('2d');
+  const w=canvas.clientWidth || 220, h=canvas.clientHeight || 54;
+  const dpr=window.devicePixelRatio||1;
+  canvas.width=Math.max(1,Math.round(w*dpr)); canvas.height=Math.max(1,Math.round(h*dpr));
+  ctx.setTransform(dpr,0,0,dpr,0,0); ctx.clearRect(0,0,w,h);
+
+  const valid=points.filter(p=>Number.isFinite(p.value));
+  if(valid.length<2) return false;
+  let min=Math.min(...valid.map(p=>p.value)),max=Math.max(...valid.map(p=>p.value));
+  if(min===max){const pad=Math.abs(min)*.02||1;min-=pad;max+=pad;}
+  const left=5,right=w-5,top=5,bottom=h-5;
+  const pts=valid.map((p,i)=>({
+    x:left+(i/Math.max(1,valid.length-1))*(right-left),
+    y:bottom-((p.value-min)/(max-min))*(bottom-top),
+    value:p.value,
+    date:p.date
+  }));
+
+  ctx.strokeStyle='rgba(145,164,186,.14)';
+  ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(0,h-1);ctx.lineTo(w,h-1);ctx.stroke();
+
+  const rgb=color.match(/[a-f0-9]{2}/gi)?.map(v=>parseInt(v,16)) || [53,217,255];
+  const rgba=(alpha)=>`rgba(${rgb[0]},${rgb[1]},${rgb[2]},${alpha})`;
+  const grad=ctx.createLinearGradient(0,0,0,h);
+  grad.addColorStop(0,rgba(.34));grad.addColorStop(1,rgba(.015));
+  ctx.beginPath();ctx.moveTo(pts[0].x,bottom);
+  pts.forEach(p=>ctx.lineTo(p.x,p.y));
+  ctx.lineTo(pts[pts.length-1].x,bottom);ctx.closePath();
+  ctx.fillStyle=grad;ctx.fill();
+
+  ctx.save();
+  ctx.shadowColor=color;ctx.shadowBlur=9;
+  ctx.beginPath();pts.forEach((p,i)=>i?ctx.lineTo(p.x,p.y):ctx.moveTo(p.x,p.y));
+  ctx.strokeStyle=color;ctx.lineWidth=2.35;ctx.lineJoin='round';ctx.lineCap='round';ctx.stroke();
+  ctx.restore();
+
+  const last=pts[pts.length-1];
+  ctx.beginPath();ctx.arc(last.x,last.y,4,0,Math.PI*2);
+  ctx.fillStyle=color;ctx.shadowColor=color;ctx.shadowBlur=10;ctx.fill();ctx.shadowBlur=0;
+  ctx.beginPath();ctx.arc(last.x,last.y,1.5,0,Math.PI*2);
+  ctx.fillStyle='#ffffff';ctx.fill();
+
+  // Repaint the selected sample after every refresh/resize.
+  const selected=canvas._selectedPointIndex;
+  if(Number.isInteger(selected) && pts[selected]){
+    const p=pts[selected];
+    ctx.beginPath();ctx.arc(p.x,p.y,5,0,Math.PI*2);
+    ctx.fillStyle='#ffffff';ctx.fill();
+    ctx.beginPath();ctx.arc(p.x,p.y,3,0,Math.PI*2);
+    ctx.fillStyle=color;ctx.fill();
+  }
+
+  canvas._chartPoints=pts;
+  canvas._chartUnit=unit;
+  canvas._chartDecimals=decimals;
+  if(!canvas._clickHandlerAttached){
+    // Close any other open graph tooltip when the user clicks elsewhere.
+    // Capture phase runs before a newly clicked graph opens its own tooltip.
+    if(!document._hydroSenseTooltipDismissHandler){
+      document.addEventListener('click',event=>{
+        const clickedCanvas=event.target.closest?.('.chart-wrap canvas') || null;
+        document.querySelectorAll('.chart-tooltip').forEach(tooltip=>{
+          const ownerCanvas=tooltip.parentElement?.querySelector('canvas');
+          if(!clickedCanvas || ownerCanvas!==clickedCanvas){
+            tooltip.style.display='none';
+            if(ownerCanvas){
+              ownerCanvas._selectedPointIndex=null;
+              // Redraw without the selected-point marker as well as hiding its tooltip.
+              if(ownerCanvas._chartSourcePoints){
+                drawMiniChart(
+                  ownerCanvas,
+                  ownerCanvas._chartSourcePoints,
+                  ownerCanvas._chartColor,
+                  ownerCanvas._chartUnit,
+                  ownerCanvas._chartDecimals
+                );
+              }
+            }
+          }
+        });
+      },true);
+      document._hydroSenseTooltipDismissHandler=true;
+    }
+    canvas.addEventListener('click',event=>{
+      const data=canvas._chartPoints;
+      if(!data || !data.length) return;
+      const rect=canvas.getBoundingClientRect();
+      const clickX=event.clientX-rect.left;
+      let nearest=0,bestDistance=Infinity;
+      data.forEach((p,i)=>{
+        const distance=Math.abs(p.x-clickX);
+        if(distance<bestDistance){bestDistance=distance;nearest=i;}
+      });
+      canvas._selectedPointIndex=nearest;
+      const point=data[nearest];
+      const wrap=canvas.parentElement;
+      const tooltip=wrap.querySelector('.chart-tooltip');
+      if(tooltip){
+        const time=point.date instanceof Date && !Number.isNaN(point.date.getTime())
+          ? point.date.toLocaleString([], {day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false})
+          : 'Time unavailable';
+        tooltip.innerHTML=`<strong>${point.value.toFixed(canvas._chartDecimals)} ${canvas._chartUnit}</strong><br>${time}`;
+        tooltip.style.display='block';
+        const tooltipWidth=tooltip.offsetWidth;
+        const leftPos=Math.max(6,Math.min(wrap.clientWidth-tooltipWidth-6,point.x-tooltipWidth/2));
+        tooltip.style.left=leftPos+'px';
+        tooltip.style.top='-2px';
+      }
+      // Redraw the line and selected-point marker without changing chart data.
+      drawMiniChart(canvas,canvas._chartSourcePoints,canvas._chartColor,canvas._chartUnit,canvas._chartDecimals);
+    });
+    canvas._clickHandlerAttached=true;
+  }
+  canvas._chartSourcePoints=points;
+  canvas._chartColor=color;
+  return true;
+}
+
+function calculateTrend(points, windowMinutes, prefix){
+  // Use real timestamps. Do not infer direction from sample order when timestamps are missing.
+  const allTimed=points
+    .filter(p=>Number.isFinite(p.value) && p.date instanceof Date && !Number.isNaN(p.date.getTime()))
+    .sort((a,b)=>a.date.getTime()-b.date.getTime());
+
+  if(allTimed.length<3){
+    return {state:'no-trend',label:`${prefix} · COLLECTING`,title:`${prefix}: waiting for at least 3 timestamped samples`};
+  }
+
+  const newestTime=allTimed[allTimed.length-1].date.getTime();
+  const cutoff=newestTime-windowMinutes*60*1000;
+  const valid=allTimed.filter(p=>p.date.getTime()>=cutoff);
+
+  if(valid.length<3){
+    return {
+      state:'no-trend',
+      label:`${prefix} · COLLECTING`,
+      title:`${prefix}: only ${valid.length} timestamped samples in this time window; at least 3 are required`
+    };
+  }
+
+  // Least-squares regression against elapsed time in minutes, not sample index.
+  const t0=valid[0].date.getTime();
+  const xs=valid.map(p=>(p.date.getTime()-t0)/60000);
+  const ys=valid.map(p=>p.value);
+  const meanX=xs.reduce((a,b)=>a+b,0)/xs.length;
+  const meanY=ys.reduce((a,b)=>a+b,0)/ys.length;
+  let numerator=0,denominator=0;
+  xs.forEach((x,i)=>{
+    numerator+=(x-meanX)*(ys[i]-meanY);
+    denominator+=(x-meanX)*(x-meanX);
+  });
+
+  if(denominator===0){
+    return {state:'stable',label:`${prefix} · → STABLE`,title:`${prefix}: ${valid.length} samples; timestamps have no elapsed span`};
+  }
+
+  const slope=numerator/denominator;
+  const firstFit=meanY+slope*(xs[0]-meanX);
+  const lastFit=meanY+slope*(xs[xs.length-1]-meanX);
+  const delta=lastFit-firstFit;
+  const baseline=Math.max(Math.abs(meanY),Math.abs(firstFit),Math.abs(lastFit),1e-9);
+  const change=(delta/baseline)*100;
+
+  // 0.5% deadband filters insignificant sensor noise.
+  const threshold=0.5;
+  let state='stable',direction='→ STABLE';
+  if(change>threshold){state='rising';direction=`↑ RISING ${Math.abs(change).toFixed(1)}%`;}
+  else if(change< -threshold){state='falling';direction=`↓ FALLING ${Math.abs(change).toFixed(1)}%`;}
+
+  const firstTime=valid[0].date.toLocaleTimeString();
+  const lastTime=valid[valid.length-1].date.toLocaleTimeString();
+  return {
+    state,
+    label:`${prefix} · ${direction}`,
+    title:`${prefix} regression using ${valid.length} timestamped samples from ${firstTime} to ${lastTime}. Fitted change: ${change.toFixed(2)}%.`
+  };
+}
+
+function renderCards(){
+  if(!latestData) return;
+  chartInstances=[];
+  let chartColorIndex=0;
+  for(const group of Object.keys(PARAMS)){
+    PARAMS[group].forEach(([key,label,unit,icon,decimals])=>{
+      const chartColor=GRAPH_COLORS[chartColorIndex++ % GRAPH_COLORS.length];
+      const id=group+'_'+key;
+      const value=getPath(latestData,'data.'+group+'.'+key);
+      if(value!==null && value!==undefined && value!=='' && Number.isFinite(Number(value))){
+        lastValidValues[id]=Number(value);
+      }
+      const hasCachedValue=Object.prototype.hasOwnProperty.call(lastValidValues,id);
+      const displayedValue=hasCachedValue ? lastValidValues[id] : null;
+      const valueEl=el('value_'+id);
+      valueEl.innerHTML=hasCachedValue
+        ? `${fmt(displayedValue,decimals)}<span class="unit">${unit}</span>`
+        : `WAITING<span class="unit">${unit}</span>`;
+      const points=historyRows.map(row=>({date:parseDate(row),value:valueFromRow(row,group,key)}))
+        .filter(p=>p.value!==null && Number.isFinite(p.value))
+        .sort((a,b)=>(a.date?.getTime()??0)-(b.date?.getTime()??0));
+      const canvas=el('chart_'+id);
+      const drawn=drawMiniChart(canvas,points,chartColor,unit,decimals);
+      if(!drawn){const tooltip=el('tooltip_'+id);if(tooltip)tooltip.style.display='none';canvas._selectedPointIndex=null;}
+      const card=el('card_'+id);
+      card.classList.toggle('no-data',!drawn);
+      el('empty_'+id).textContent='';
+      el('empty_'+id).style.display='none';
+      el('trend_'+id).textContent=points.length ? `${points.length} samples · 1 hour` : '1-hour history';
+      const trend1h=calculateTrend(points,60,'1H');
+      const trend10m=calculateTrend(points,10,'10M');
+
+      const tag1h=el('tag1h_'+id);
+      tag1h.textContent=trend1h.label;
+      tag1h.className='tag '+trend1h.state;
+      tag1h.title=trend1h.title;
+
+      const tag10m=el('tag10m_'+id);
+      tag10m.textContent=trend10m.label;
+      tag10m.className='tag '+trend10m.state;
+      tag10m.title=trend10m.title;
+      chartInstances.push({canvas,values:points.map(p=>p.value)});
+    });
+  }
+  saveLastValidValues();
+}
+function renderLatest(payload){
+  latestData=payload;
+  const data=payload?.data?.data ?? payload?.data ?? {};
+  const gps=data?.gps ?? payload?.gps ?? {};
+  const received=firstDate(
+    [payload,data,payload?.meta,data?.meta],
+    ['received_at','last_received_at','last_data_received','server_received_at','ingested_at','last_seen','updated_at','created_at']
+  );
+  const deviceTime=firstDate(
+    [data,payload,data?.metadata,payload?.metadata],
+    ['timestamp','device_timestamp','recorded_at','datetime','time','ts']
+  );
+
+  // Prefer the server's receive timestamp for heartbeat detection. If unavailable,
+  // fall back to the device timestamp supplied with the latest record.
+  lastDataReceivedAt=received || deviceTime || lastDataReceivedAt;
+  deviceDataTimestamp=deviceTime || received || deviceDataTimestamp;
+  latestGpsData=gps;
+
+  setText('deviceName',payload?.device_name ?? payload?.device_id ?? '—');
+  setText('deviceId',payload?.device_id ?? data?.device_id ?? 'HYDROSENSE-001');
+  setText('projectName',payload?.project_name ?? data?.project_name ?? '—');
+  const firmwareValue = data?.firmware_version ?? payload?.firmware_version ?? data?.firmware ?? payload?.firmware;
+  if(firmwareValue !== undefined && firmwareValue !== null && String(firmwareValue).trim() !== ''){
+    try { localStorage.setItem('hydrosense_last_firmware_version', String(firmwareValue).trim()); } catch(e) {}
+    setText('firmware', String(firmwareValue).trim());
+  } else {
+    let savedFirmware = null;
+    try { savedFirmware = localStorage.getItem('hydrosense_last_firmware_version'); } catch(e) {}
+    setText('firmware', savedFirmware || 'Not reported');
+  }
+  setText('statusMode',payload?.status_mode ?? '—');
+
+  const lat=Number(gps.latitude), lon=Number(gps.longitude);
+  const hasCoordinates=gps.latitude!==null && gps.latitude!==undefined &&
+    gps.longitude!==null && gps.longitude!==undefined &&
+    Number.isFinite(lat) && Number.isFinite(lon) &&
+    !(lat===0 && lon===0);
+  const fixValue=String(gps.valid ?? gps.fix ?? gps.fix_status ?? '').trim().toLowerCase();
+  const hasFix=gps.valid===true || gps.fix===true ||
+    ['true','1','fix','fixed','valid','yes'].includes(fixValue);
+
+  // Only replace the stored GPS fix when a new valid fix AND coordinates are supplied.
+  // During SLEEP, missing GPS fields or a temporary NO FIX must not erase the last known position.
+  if(hasFix && hasCoordinates){
+    lastValidGps={
+      latitude:lat,
+      longitude:lon,
+      altitude_m:gps.altitude_m!==null && gps.altitude_m!==undefined && Number.isFinite(Number(gps.altitude_m))
+        ? Number(gps.altitude_m)
+        : (lastValidGps?.altitude_m ?? null),
+      satellites:gps.satellites!==null && gps.satellites!==undefined && Number.isFinite(Number(gps.satellites))
+        ? Number(gps.satellites)
+        : (lastValidGps?.satellites ?? null),
+      fix_age_s:gps.fix_age_s ?? gps.fix_age ?? gps.age_s ?? lastValidGps?.fix_age_s ?? null,
+      saved_at:new Date().toISOString()
+    };
+    saveLastValidGps();
+  } else if(lastValidGps) {
+    // Keep last-known GPS data when sleeping, missing, or temporarily reporting no fix.
+  }
+
+  const shownGps=lastValidGps;
+  const shownHasFix=!!shownGps;
+  const shownCoords=shownGps
+    ? `${Number(shownGps.latitude).toFixed(6)}, ${Number(shownGps.longitude).toFixed(6)}`
+    : 'WAITING FOR GPS FIX';
+  setText('gpsPositionCard',shownHasFix?'FIX':'WAITING');
+  const gpsPosition=el('gpsPositionCard');
+  if(gpsPosition) gpsPosition.className='ov-value '+(shownHasFix?'gps-fix':'gps-no-fix');
+  setText('gpsCoordinateCard',shownCoords);
+  setText('gpsSatellitesCard',shownGps?.satellites ?? 'WAITING');
+  const fixAge=shownGps?.fix_age_s;
+  setText('gpsFixAgeCard',fixAge!==undefined && fixAge!==null?`Fix age: ${fmt(fixAge,0)} s`:'Last known GPS fix');
+
+  setText('gpsFix',shownHasFix?'VALID':'WAITING');
+  setText('gpsCoords',shownHasFix?shownCoords:'WAITING FOR GPS FIX');
+  setText('gpsAltitude',shownGps?.altitude_m!=null?fmt(shownGps.altitude_m,1)+' m':'WAITING');
+  setText('gpsSatellites',shownGps?.satellites ?? 'WAITING');
+
+  updateDeviceHeartbeat();
+  renderCards();
+}
+async function fetchJSON(url, timeoutMs=9000){
+  const controller=new AbortController();
+  const timeout=setTimeout(()=>controller.abort(),timeoutMs);
+  try{
+    const response=await fetch(url,{
+      method:'GET',
+      cache:'no-store',
+      mode:'cors',
+      headers:{'Accept':'application/json'},
+      signal:controller.signal
+    });
+    if(!response.ok) throw new Error(`HTTP ${response.status}`);
+    return await response.json();
+  }catch(err){
+    if(err.name==='AbortError') throw new Error('Request timed out');
+    throw err;
+  }finally{
+    clearTimeout(timeout);
+  }
+}
+async function refreshLatest(){
+  // The latest endpoint is the source of truth for live readings.
+  // Do not wait for /status: a slow status request must never block sensor values.
+  try{
+    const latest=await fetchJSON(API.latest);
+    if(!latest || typeof latest!=='object') throw new Error('Invalid latest API response');
+    renderLatest(latest);
+    setText('connectionText','API: Connected');
+    el('connectionText').className='';
+
+    // Status is supplementary only. Update it when available, without blocking latest data.
+    fetchJSON(API.status,5000).then(status=>{
+      if(!status || typeof status!=='object') return;
+      if(status.status_mode) setText('statusMode',status.status_mode);
+      // Device state is calculated locally from the last received data timestamp.
+    }).catch(err=>console.warn('HydroSense status API:',err));
+  }catch(err){
+    setText('connectionText','Latest API: '+err.message);
+    el('connectionText').className='error';
+    updateDeviceHeartbeat();
+    if(!latestData){
+      setText('deviceStatus','OFFLINE');
+      setText('deviceStatusCard','OFFLINE');
+      el('statusDot').className='status-dot offline';
+    }
+    console.error('HydroSense latest API:',err);
+  }
+}
+async function refreshHistory(){
+  try{
+    const payload=await fetchJSON(API.history,9000);
+    historyRows=unwrapHistory(payload);
+    historyLoaded=true;
+    console.info('HydroSense history records:',historyRows.length);
+    if(latestData) renderCards();
+  }catch(err){
+    historyLoaded=true;
+    console.warn('HydroSense history API:',err);
+    if(latestData) renderCards();
+  }
+}
+async function refreshAll(){
+  const btn=el('refreshBtn');btn.disabled=true;btn.textContent='Refreshing…';
+  await Promise.all([refreshLatest(),refreshHistory()]);
+  btn.disabled=false;btn.textContent='↻ Refresh';
+}
+buildCards();
+refreshAll();
+setInterval(refreshLatest,REFRESH_LATEST_MS);
+setInterval(refreshHistory,REFRESH_HISTORY_MS);
+setInterval(updateDeviceHeartbeat,1000);
+el('refreshBtn').addEventListener('click',refreshAll);
+window.addEventListener('resize',()=>{clearTimeout(window.__chartResize);window.__chartResize=setTimeout(()=>{if(latestData)renderCards();},180);});
+</script>
+</body>
+</html>
