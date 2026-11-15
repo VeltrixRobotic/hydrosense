@@ -53,17 +53,17 @@
   </div>
 
   <section class="section">
-    <div class="section-head"><div><div class="section-title">🌊 Water Quality</div><div class="section-sub">Live readings with individual 1-hour trends</div></div><span class="tag">WATER</span></div>
+    <div class="section-head"><div><div class="section-title">🌊 Water Quality</div><div class="section-sub">Live readings with 12-hour history · individual 1-hour and 10-minute trends</div></div><span class="tag">WATER</span></div>
     <div class="grid" id="waterGrid"></div>
   </section>
 
   <section class="section">
-    <div class="section-head"><div><div class="section-title">🌱 Soil Parameters</div><div class="section-sub">Live readings with individual 1-hour trends</div></div><span class="tag">SOIL</span></div>
+    <div class="section-head"><div><div class="section-title">🌱 Soil Parameters</div><div class="section-sub">Live readings with 12-hour history · individual 1-hour and 10-minute trends</div></div><span class="tag">SOIL</span></div>
     <div class="grid" id="soilGrid"></div>
   </section>
 
   <section class="section">
-    <div class="section-head"><div><div class="section-title">🌤️ Environment</div><div class="section-sub">Ambient conditions · 1-hour trends</div></div><span class="tag">ENVIRONMENT</span></div>
+    <div class="section-head"><div><div class="section-title">🌤️ Environment</div><div class="section-sub">Ambient conditions · 12-hour history</div></div><span class="tag">ENVIRONMENT</span></div>
     <div class="grid" id="envGrid"></div>
   </section>
 
@@ -80,7 +80,7 @@
       <div class="info-row"><span>Project</span><strong id="projectName">—</strong></div>
       <div class="info-row"><span>Firmware</span><strong id="firmware">—</strong></div>
       <div class="info-row"><span>Status Mode</span><strong id="statusMode">—</strong></div>
-      <div class="info-row"><span>History Window</span><strong>Last 1 hour</strong></div>
+      <div class="info-row"><span>History Window</span><strong>Last 12 hours</strong></div>
     </section>
   </div>
   <div class="footer"><span>HydroSense Monitoring Dashboard</span><span id="connectionText">API: Connecting…</span></div>
@@ -89,7 +89,7 @@
 <script>
 const API = {
   latest: 'https://api.veltrixrobotic.com/api/hydeosense/latest',
-  history: 'https://api.veltrixrobotic.com/api/hydeosense/history?hours=1',
+  history: 'https://api.veltrixrobotic.com/api/hydeosense/history?hours=12',
   status: 'https://api.veltrixrobotic.com/api/hydeosense/status'
 };
 const REFRESH_LATEST_MS = 10000;
@@ -340,8 +340,8 @@ function buildCards(){
       card.innerHTML=`
         <div class="sensor-top"><div class="sensor-name">${label}</div><div class="sensor-icon">${icon}</div></div>
         <div class="sensor-value" id="value_${id}">—<span class="unit">${unit}</span></div>
-        <div class="sensor-foot"><span id="trend_${id}">1-hour history</span><span class="trend-badges"><span class="tag no-trend" id="tag1h_${id}" title="Overall trend across the last hour">1H · COLLECTING</span><span class="tag no-trend" id="tag10m_${id}" title="Recent trend across the last 10 minutes">10M · COLLECTING</span></span></div>
-        <div class="chart-wrap"><canvas id="chart_${id}" aria-label="${label} 1-hour history graph. Click a point to view its value and time."></canvas><div class="chart-tooltip" id="tooltip_${id}"></div><div class="chart-empty" id="empty_${id}">Waiting for history data</div></div>`;
+        <div class="sensor-foot"><span id="trend_${id}">12-hour history</span><span class="trend-badges"><span class="tag no-trend" id="tag1h_${id}" title="Overall trend across the last hour">1H · COLLECTING</span><span class="tag no-trend" id="tag10m_${id}" title="Recent trend across the last 10 minutes">10M · COLLECTING</span></span></div>
+        <div class="chart-wrap"><canvas id="chart_${id}" aria-label="${label} 12-hour history graph. Click a point to view its value and time."></canvas><div class="chart-tooltip" id="tooltip_${id}"></div><div class="chart-empty" id="empty_${id}">Waiting for history data</div></div>`;
       target.appendChild(card);
     });
   }
@@ -553,7 +553,7 @@ function renderCards(){
       card.classList.toggle('no-data',!drawn);
       el('empty_'+id).textContent='';
       el('empty_'+id).style.display='none';
-      el('trend_'+id).textContent=points.length ? `${points.length} samples · 1 hour` : '1-hour history';
+      el('trend_'+id).textContent=points.length ? `${points.length} samples · 12 hours` : '12-hour history';
       const trend1h=calculateTrend(points,60,'1H');
       const trend10m=calculateTrend(points,10,'10M');
 
