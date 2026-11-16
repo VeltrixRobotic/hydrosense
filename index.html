@@ -152,6 +152,7 @@ function saveLastValidValues(){
 }
 let lastDataReceivedAt = null;
 let deviceDataTimestamp = null;
+let latestSensorTimestamp = null;
 let latestGpsData = null;
 const GPS_CACHE_KEY = 'hydrosense_last_valid_gps_v1';
 let lastValidGps = null;
@@ -320,9 +321,20 @@ function rowRoot(row){
 function valueFromRow(row,group,key){
   const root=rowRoot(row);
   const direct=getPath(root,group+'.'+key);
-  if(direct!==undefined && direct!==null) return Number(direct);
+  if(direct!==undefined && direct!==null && direct!=='' && Number.isFinite(Number(direct))) return Number(direct);
   const flat=root?.[group+'_'+key] ?? root?.[key];
-  return flat===undefined || flat===null ? null : Number(flat);
+  return flat===undefined || flat===null || flat==='' || !Number.isFinite(Number(flat)) ? null : Number(flat);
+}
+function validSensorNumber(value){
+  return value!==null && value!==undefined && value!=='' && Number.isFinite(Number(value));
+}
+function getLatestSensorValue(group,key){
+  // Latest API responses may be shaped as {data:{...}} or {data:{data:{...}}}.
+  const root=latestData?.data?.data ?? latestData?.data ?? latestData ?? {};
+  const direct=getPath(root,group+'.'+key);
+  const flat=root?.[group+'_'+key] ?? root?.[key];
+  const value=direct!==undefined && direct!==null ? direct : flat;
+  return validSensorNumber(value) ? Number(value) : null;
 }
 function buildCards(){
   const gridIds = { water:'waterGrid', soil:'soilGrid', environment:'envGrid' };
@@ -533,9 +545,28 @@ function renderCards(){
     PARAMS[group].forEach(([key,label,unit,icon,decimals])=>{
       const chartColor=GRAPH_COLORS[chartColorIndex++ % GRAPH_COLORS.length];
       const id=group+'_'+key;
-      const value=getPath(latestData,'data.'+group+'.'+key);
-      if(value!==null && value!==undefined && value!=='' && Number.isFinite(Number(value))){
-        lastValidValues[id]=Number(value);
+      const latestValue=getLatestSensorValue(group,key);
+      const points=historyRows.map(row=>({date:parseDate(row),value:valueFromRow(row,group,key)}))
+        .filter(p=>p.value!==null && Number.isFinite(p.value))
+        .sort((a,b)=>(a.date?.getTime()??0)-(b.date?.getTime()??0));
+
+      // Use the newest historical sample when it is at least as recent as the
+      // latest endpoint. This keeps the large reading synchronized with the
+      // right-hand end of its graph, while retaining a genuinely newer /latest
+      // reading (including a valid zero).
+      const timedHistoryPoints=points
+        .filter(p=>p.date instanceof Date && !Number.isNaN(p.date.getTime()))
+        .sort((a,b)=>b.date.getTime()-a.date.getTime());
+      const newestHistoryPoint=timedHistoryPoints[0] || null;
+      const historyIsCurrent=!!newestHistoryPoint &&
+        (!latestSensorTimestamp || newestHistoryPoint.date.getTime()>=latestSensorTimestamp.getTime());
+      let selectedValue=null;
+      if(historyIsCurrent) selectedValue=newestHistoryPoint.value;
+      else if(latestValue!==null) selectedValue=latestValue;
+      else if(newestHistoryPoint) selectedValue=newestHistoryPoint.value;
+
+      if(selectedValue!==null && Number.isFinite(selectedValue)){
+        lastValidValues[id]=selectedValue;
       }
       const hasCachedValue=Object.prototype.hasOwnProperty.call(lastValidValues,id);
       const displayedValue=hasCachedValue ? lastValidValues[id] : null;
@@ -543,9 +574,6 @@ function renderCards(){
       valueEl.innerHTML=hasCachedValue
         ? `${fmt(displayedValue,decimals)}<span class="unit">${unit}</span>`
         : `WAITING<span class="unit">${unit}</span>`;
-      const points=historyRows.map(row=>({date:parseDate(row),value:valueFromRow(row,group,key)}))
-        .filter(p=>p.value!==null && Number.isFinite(p.value))
-        .sort((a,b)=>(a.date?.getTime()??0)-(b.date?.getTime()??0));
       const canvas=el('chart_'+id);
       const drawn=drawMiniChart(canvas,points,chartColor,unit,decimals);
       if(!drawn){const tooltip=el('tooltip_'+id);if(tooltip)tooltip.style.display='none';canvas._selectedPointIndex=null;}
@@ -588,6 +616,7 @@ function renderLatest(payload){
   // fall back to the device timestamp supplied with the latest record.
   lastDataReceivedAt=received || deviceTime || lastDataReceivedAt;
   deviceDataTimestamp=deviceTime || received || deviceDataTimestamp;
+  latestSensorTimestamp=deviceTime || received || latestSensorTimestamp;
   latestGpsData=gps;
 
   setText('deviceName',payload?.device_name ?? payload?.device_id ?? '—');
