@@ -11,11 +11,11 @@
 .wrap{max-width:1440px;margin:auto;padding:26px 22px 40px}.top{display:flex;justify-content:space-between;align-items:center;gap:16px;margin-bottom:22px}.brand{display:flex;align-items:center;gap:13px}.logo{width:46px;height:46px;border-radius:14px;background:linear-gradient(145deg,#1e9fba,#2166b7);display:grid;place-items:center;font-size:24px;box-shadow:0 8px 24px #0b789955}.brand h1{font-size:23px;letter-spacing:.2px;margin:0}.sub{color:var(--muted);font-size:12px;margin-top:4px}.topright{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
 #liveClock{font-variant-numeric:tabular-nums;white-space:nowrap}
 @media(max-width:680px){#liveClock{font-size:11px;padding:7px 9px}}
-.pill{border:1px solid var(--line);background:#111f31;padding:8px 12px;border-radius:999px;color:var(--muted);font-size:12px}.status-dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--yellow);margin-right:7px}.status-dot.online{background:var(--green);box-shadow:0 0 10px #35d49a88}.status-dot.offline{background:var(--red)}.status-dot.sleep{background:var(--yellow);box-shadow:0 0 10px #f5c65b88}
+.pill{border:1px solid var(--line);background:#111f31;padding:8px 12px;border-radius:999px;color:var(--muted);font-size:12px}.status-dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--yellow);margin-right:7px}.status-dot.online{background:var(--green);box-shadow:0 0 10px #35d49a88}.status-dot.offline{background:var(--red)}.status-dot.sleep{background:var(--blue);box-shadow:0 0 10px #56a9ff88}
 .overview{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;margin-bottom:22px}.overview-card,.section,.sensor-card{background:linear-gradient(145deg,rgba(20,34,56,.96),rgba(13,25,42,.96));border:1px solid var(--line);border-radius:17px;box-shadow:var(--shadow)}.overview-card{padding:16px 18px;min-height:98px}.ov-label{color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:1px}.ov-value{font-size:20px;font-weight:700;margin-top:9px}.ov-small{font-size:11px;color:var(--muted);margin-top:4px}
 .ov-value.ov-date{font-size:clamp(14px,1.45vw,19px);white-space:normal;overflow-wrap:anywhere;word-break:normal;line-height:1.25}
 #deviceStatusCard.status-online{color:var(--green)}
-#deviceStatusCard.status-sleep{color:var(--yellow)}
+#deviceStatusCard.status-sleep{color:var(--blue)}
 #deviceStatusCard.status-offline{color:var(--red)}
 #gpsPositionCard.gps-fix{color:var(--green)}
 #gpsPositionCard.gps-no-fix{color:var(--yellow)}
@@ -174,8 +174,11 @@ function saveLastValidGps(){
   try { localStorage.setItem(GPS_CACHE_KEY,JSON.stringify(lastValidGps)); }
   catch(storageError) { console.warn('HydroSense: unable to save GPS fix',storageError); }
 }
-const SLEEP_AFTER_MS = 40 * 1000;
-const OFFLINE_AFTER_MS = 5 * 60 * 1000;
+// HydroSense reports ONLINE/SLEEP explicitly over its dedicated MQTT status topic.
+// The device sleeps for 10 minutes, so allow a 30-minute data timeout before OFFLINE.
+const OFFLINE_AFTER_MS = 30 * 60 * 1000;
+let reportedDeviceStatus = null;
+let statusLastDataAt = null;
 
 function el(id){ return document.getElementById(id); }
 function setText(id,value){ const node=el(id); if(node) node.textContent = value ?? '—'; }
@@ -228,10 +231,30 @@ function updateLiveClock(){
 }
 
 function updateDeviceHeartbeat(){
-  const age=lastDataReceivedAt ? Math.max(0,Date.now()-lastDataReceivedAt.getTime()) : Infinity;
+  // Use the newest valid timestamp from either endpoint. A stale /status
+  // timestamp must not override a newer timestamp from /latest.
+  const timestamps=[statusLastDataAt,lastDataReceivedAt]
+    .filter(value=>value instanceof Date && !Number.isNaN(value.getTime()));
+  const referenceTime=timestamps.length
+    ? new Date(Math.max(...timestamps.map(value=>value.getTime())))
+    : null;
+  const age=referenceTime ? Math.max(0,Date.now()-referenceTime.getTime()) : Infinity;
   let status='OFFLINE', cls='status-offline';
-  if(age<=SLEEP_AFTER_MS){ status='ONLINE'; cls='status-online'; }
-  else if(age<=OFFLINE_AFTER_MS){ status='SLEEP'; cls='status-sleep'; }
+
+  // Data freshness is the final OFFLINE guard. The API may still return OFFLINE
+  // using an older server timeout; keep the explicit device-reported state until
+  // data has genuinely been missing for more than 30 minutes.
+  if(age <= OFFLINE_AFTER_MS){
+    if(reportedDeviceStatus === 'SLEEP'){
+      status='SLEEP'; cls='status-sleep';
+    }else if(reportedDeviceStatus === 'ONLINE'){
+      status='ONLINE'; cls='status-online';
+    }else if(age <= 5 * 60 * 1000){
+      status='ONLINE'; cls='status-online';
+    }else{
+      status='SLEEP'; cls='status-sleep';
+    }
+  }
 
   const statusCard=el('deviceStatusCard');
   if(statusCard){
@@ -627,7 +650,10 @@ function renderCards(){
 }
 function renderLatest(payload){
   latestData=payload;
-  const data=payload?.data?.data ?? payload?.data ?? {};
+  // Some API responses wrap the device record inside data / result / latest.
+  // Read an explicit device-reported state from /latest as well as /status.
+  applyLatestReportedStatus(payload);
+  const data=payload?.data?.data ?? payload?.data ?? payload?.latest?.data ?? payload?.latest ?? {};
   const gps=data?.gps ?? payload?.gps ?? {};
   const received=firstDate(
     [payload,data,payload?.meta,data?.meta],
@@ -657,7 +683,7 @@ function renderLatest(payload){
     try { savedFirmware = localStorage.getItem('hydrosense_last_firmware_version'); } catch(e) {}
     setText('firmware', savedFirmware || 'Not reported');
   }
-  setText('statusMode',payload?.status_mode ?? '—');
+  setText('statusMode',payload?.status_mode ?? data?.status_mode ?? '—');
 
   const lat=Number(gps.latitude), lon=Number(gps.longitude);
   const hasCoordinates=gps.latitude!==null && gps.latitude!==undefined &&
@@ -729,6 +755,78 @@ async function fetchJSON(url, timeoutMs=9000){
     clearTimeout(timeout);
   }
 }
+function apiObjects(payload){
+  const objects=[];
+  const seen=new Set();
+  const queue=[payload];
+  const wrapperKeys=['data','result','latest','device','status','record','payload'];
+  while(queue.length && objects.length<20){
+    const item=queue.shift();
+    if(!item || typeof item!=='object' || Array.isArray(item) || seen.has(item)) continue;
+    seen.add(item); objects.push(item);
+    for(const key of wrapperKeys){
+      const child=item[key];
+      if(child && typeof child==='object' && !Array.isArray(child)) queue.push(child);
+    }
+  }
+  return objects;
+}
+function extractReportedStatus(payload){
+  const objects=apiObjects(payload);
+  // Prefer explicit device-reported fields over a server-calculated status.
+  const explicitKeys=['reported_status','device_status','reportedState','deviceState','operational_status','state'];
+  for(const obj of objects){
+    for(const key of explicitKeys){
+      const value=obj[key];
+      if(typeof value==='string'){
+        const normalized=value.trim().toUpperCase();
+        if(['ONLINE','SLEEP','OFFLINE'].includes(normalized)) return normalized;
+      }
+    }
+  }
+  // Some deployments expose the device's last reported state as `status`.
+  for(const obj of objects){
+    if(typeof obj.status==='string'){
+      const normalized=obj.status.trim().toUpperCase();
+      if(['ONLINE','SLEEP'].includes(normalized)) return normalized;
+    }
+  }
+  return null;
+}
+function applyLatestReportedStatus(latestPayload){
+  const reported=extractReportedStatus(latestPayload);
+  if(reported==='ONLINE' || reported==='SLEEP'){
+    reportedDeviceStatus=reported;
+    updateDeviceHeartbeat();
+  }
+}
+function applyStatusApi(statusPayload){
+  if(!statusPayload || typeof statusPayload !== 'object') return;
+  const objects=apiObjects(statusPayload);
+  const reported=extractReportedStatus(statusPayload);
+  if(reported==='ONLINE' || reported==='SLEEP') reportedDeviceStatus=reported;
+
+  let ageSeconds=NaN;
+  for(const obj of objects){
+    const candidate=obj.age_seconds ?? obj.ageSeconds ?? obj.data_age_seconds;
+    if(candidate!==undefined && candidate!==null && candidate!=='' && Number.isFinite(Number(candidate))){
+      ageSeconds=Number(candidate); break;
+    }
+  }
+  if(Number.isFinite(ageSeconds) && ageSeconds >= 0){
+    statusLastDataAt=new Date(Date.now()-ageSeconds*1000);
+  }else{
+    const lastData=firstDate(objects,
+      ['last_data_at','last_received_at','last_seen','updated_at','received_at','server_received_at']);
+    if(lastData) statusLastDataAt=lastData;
+  }
+
+  for(const obj of objects){
+    if(obj.status_mode){setText('statusMode',obj.status_mode);break;}
+  }
+  updateDeviceHeartbeat();
+}
+
 async function refreshLatest(){
   // The latest endpoint is the source of truth for live readings.
   // Do not wait for /status: a slow status request must never block sensor values.
@@ -741,9 +839,7 @@ async function refreshLatest(){
 
     // Status is supplementary only. Update it when available, without blocking latest data.
     fetchJSON(API.status,5000).then(status=>{
-      if(!status || typeof status!=='object') return;
-      if(status.status_mode) setText('statusMode',status.status_mode);
-      // Device state is calculated locally from the last received data timestamp.
+      applyStatusApi(status);
     }).catch(err=>console.warn('HydroSense status API:',err));
   }catch(err){
     setText('connectionText','Latest API: '+err.message);
