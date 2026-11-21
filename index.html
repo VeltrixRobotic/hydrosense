@@ -401,7 +401,7 @@ function buildCards(){
       card.innerHTML=`
         <div class="sensor-top"><div class="sensor-name">${label}</div><div class="sensor-icon">${icon}</div></div>
         <div class="sensor-value" id="value_${id}">—<span class="unit">${unit}</span></div>
-        <div class="sensor-foot"><span id="trend_${id}">12-hour history</span><span class="trend-badges"><span class="tag no-trend" id="tag1h_${id}" title="Overall trend across the last hour">1H · COLLECTING</span><span class="tag no-trend" id="tag10m_${id}" title="Recent trend across the last 10 minutes">10M · COLLECTING</span></span></div>
+        <div class="sensor-foot"><span id="trend_${id}">12-hour history</span><span class="trend-badges"><span class="tag no-trend" id="tag1h_${id}" title="Overall trend across the last hour">1H · COLLECTING</span><span class="tag no-trend" id="tag6h_${id}" title="Recent trend across the last 6 hours">6H · COLLECTING</span></span></div>
         <div class="chart-wrap"><canvas id="chart_${id}" aria-label="${label} 12-hour history graph. Click a point to view its value and time."></canvas><div class="chart-tooltip" id="tooltip_${id}"></div><div class="chart-empty" id="empty_${id}">Waiting for history data</div></div>`;
       target.appendChild(card);
     });
@@ -632,17 +632,17 @@ function renderCards(){
       el('empty_'+id).style.display='none';
       el('trend_'+id).textContent=points.length ? `${points.length} samples · 12 hours` : '12-hour history';
       const trend1h=calculateTrend(points,60,'1H');
-      const trend10m=calculateTrend(points,10,'10M');
+      const trend6h=calculateTrend(points,360,'6H');
 
       const tag1h=el('tag1h_'+id);
       tag1h.textContent=trend1h.label;
       tag1h.className='tag '+trend1h.state;
       tag1h.title=trend1h.title;
 
-      const tag10m=el('tag10m_'+id);
-      tag10m.textContent=trend10m.label;
-      tag10m.className='tag '+trend10m.state;
-      tag10m.title=trend10m.title;
+      const tag6h=el('tag6h_'+id);
+      tag6h.textContent=trend6h.label;
+      tag6h.className='tag '+trend6h.state;
+      tag6h.title=trend6h.title;
       chartInstances.push({canvas,values:points.map(p=>p.value)});
     });
   }
